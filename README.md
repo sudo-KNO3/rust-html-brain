@@ -145,11 +145,69 @@ Global flags:
 - `--config <path>` use a different config (default `config.toml`)
 - `--output <path>` override the configured output directory
 
+## Docker
+
+Two image tags from the same `Dockerfile`:
+
+| Tag | Size | First-run cost | Best for |
+|---|---|---|---|
+| `rust-html-brain:slim` | ~2.8 GB | downloads model from HF Hub (~500 MB, cached in `kb-cache` volume) | local + development |
+| `rust-html-brain:full` | ~3.5 GB | none — model pre-baked | air-gapped servers, distribution |
+
+### Quick start with `docker compose`
+
+```bash
+docker compose build slim-image          # ~5 min
+docker compose run --rm build            # build site from ./content
+docker compose run --rm index            # walk ./code, embed → output/code_index.json
+docker compose up serve                  # search server on localhost:9100
+```
+
+Edit `docker-compose.yml` to point volume mounts at your real content +
+code directories.
+
+### Bare `docker run`
+
+```bash
+docker build -t rust-html-brain:slim .
+
+# index
+docker run --rm \
+    -v "$PWD/content":/sources/notes:ro \
+    -v "$PWD/code":/sources/code:ro \
+    -v "$PWD/output":/output \
+    -v kb-cache:/cache \
+    rust-html-brain:slim kb index-code
+
+# serve
+docker run -d --name kb \
+    -p 9100:9100 \
+    -v "$PWD/output":/output:ro \
+    -v kb-cache:/cache \
+    rust-html-brain:slim
+```
+
+### Building the offline image
+
+```bash
+docker build --build-arg BAKE_MODEL=true -t rust-html-brain:full .
+```
+
+Takes ~10 minutes (downloads + bakes `nomic-embed-text-v1.5`). After
+that, `kb index-code` works with no internet.
+
+The container's bundled `config.toml` lives at `/app/config.toml` and
+points at `/sources/notes` + `/sources/code` — mount your data there.
+Only `kb_embed_simple.py` (sentence-transformers) is used in the image;
+nothing leaves your network unless you set `OPENAI_API_KEY` and swap
+the embed script.
+
 ## Status
 
-Functional, single-binary, no runtime dependencies after build. Active
-known debt: no live-reload, no syntax highlighting on chunk pages,
-sentence-transformers downloads its model on first run.
+Functional. Native single-binary build, or one container if you prefer
+isolation. Active known debt: no live-reload, no syntax highlighting
+on chunk pages, sentence-transformers downloads its model on first run
+(slim image) or pre-bakes it (full image).
 
 ## License
 

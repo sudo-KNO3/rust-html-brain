@@ -1,0 +1,14 @@
+target/
+output/
+.git/
+.vscode/
+.idea/
+
+# Local-only config (image bundles its own container-native config.toml)
+config.toml
+
+# Editor + OS junk
+*.iml
+.DS_Store
+Thumbs.db
+**/*.rs.bk

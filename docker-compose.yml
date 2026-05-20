@@ -1,0 +1,75 @@
+# docker-compose.yml — convenience entry points for rust-html-brain.
+#
+# Quick start (slim image, model downloads on first index):
+#
+#   docker compose build           # builds rust-html-brain:slim
+#   docker compose run --rm build  # ./output/  populates
+#   docker compose run --rm index  # embeds code → output/code_index.json
+#   docker compose up serve        # http://localhost:9100/search live
+#
+# Swap to fully-offline `:full` image:
+#
+#   docker compose --profile full build full-image
+#   # then point the other services at rust-html-brain:full
+
+x-common: &common
+  image: rust-html-brain:slim
+  volumes:
+    # Adjust these host paths to your actual content + code directories.
+    - ./content:/sources/notes:ro          # markdown notes (read-only)
+    - ./output:/output                     # generated HTML (read/write)
+    - kb-cache:/cache                      # HF model cache (persists across runs)
+  environment:
+    - RUST_LOG=info
+
+services:
+  # ─── Slim image (downloads model on first kb index-code call) ──────────────
+  slim-image:
+    build:
+      context: .
+      args:
+        BAKE_MODEL: "false"
+    image: rust-html-brain:slim
+    command: "true"        # build-only; this service never runs
+    profiles: ["build"]
+
+  # ─── Full image (model pre-baked, ~3.5 GB, fully offline) ─────────────────
+  full-image:
+    build:
+      context: .
+      args:
+        BAKE_MODEL: "true"
+    image: rust-html-brain:full
+    command: "true"
+    profiles: ["full"]
+
+  # ─── Build the static HTML site (one-shot) ────────────────────────────────
+  build:
+    <<: *common
+    command: ["kb"]
+    restart: "no"
+
+  # ─── Index codebases for semantic search (one-shot) ───────────────────────
+  index:
+    <<: *common
+    volumes:
+      - ./content:/sources/notes:ro
+      - ./code:/sources/code:ro            # adjust to your code dir(s)
+      - ./output:/output
+      - kb-cache:/cache
+    command: ["kb", "index-code"]
+    restart: "no"
+
+  # ─── Run the semantic-search HTTP server (long-lived) ─────────────────────
+  serve:
+    <<: *common
+    volumes:
+      - ./output:/output:ro
+      - kb-cache:/cache
+    ports:
+      - "9100:9100"
+    command: ["kb", "serve", "--bind", "0.0.0.0:9100"]
+    restart: unless-stopped
+
+volumes:
+  kb-cache:
