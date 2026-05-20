@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Code — {{ site_title }}</title>
+    <meta name="description" content="{{ n_chunks }} code chunks across {{ projects | length }} projects, embedded with {{ model }}.">
+    <meta name="ai:content-type" content="code-index">
+    <meta name="ai:embedding-model" content="{{ model }}">
+    <meta name="ai:embedding-dim" content="{{ dim }}">
+
+    <link rel="stylesheet" href="../style.css">
+    <style>
+        .file-group {
+            margin-bottom: 6px;
+            background: var(--bg-alt);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 14px;
+        }
+        .file-group .path {
+            font-family: monospace;
+            color: var(--accent);
+            font-weight: 600;
+            margin-bottom: 4px;
+            font-size: 0.92em;
+        }
+        .file-group .chunks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px 6px;
+        }
+        .file-group .chunks a {
+            font-size: 0.8em;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 2px 8px;
+            color: var(--text);
+        }
+        .file-group .chunks a:hover { background: var(--accent); color: var(--bg); text-decoration: none; }
+    </style>
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+        <div class="brand"><a href="../index.html">{{ site_title }}</a></div>
+        <div class="nav-tabs">
+            <a href="../index.html">Index</a>
+            <a href="../graph.html">Graph</a>
+            <a href="./index.html" class="active">Code</a>
+        </div>
+        <h3>Stats</h3>
+        <ul>
+            <li>{{ n_chunks }} chunks</li>
+            <li>{{ projects | length }} projects</li>
+            <li>model: <code style="font-size:0.85em;">{{ model }}</code></li>
+            <li>dim: {{ dim }}</li>
+        </ul>
+        <h3>Semantic search</h3>
+        <p style="font-size: 0.88em; color: var(--text-dim);">
+            Run <code>kb serve</code> to enable semantic search in the
+            <a href="../graph.html">graph view</a>.
+        </p>
+    </aside>
+
+    <main>
+        <h1>Code Index</h1>
+        <p style="color: var(--text-dim);">
+            Every file under the configured code sources is split into
+            ≤1500-char chunks, embedded with <code>{{ model }}</code>, and
+            published below. Each chunk has its own page with full source +
+            JSON-LD <code>SoftwareSourceCode</code> metadata for AI agents.
+        </p>
+
+        {% for proj in projects %}
+        <section class="category">
+            <h2>{{ proj.name }} ({{ proj.files | length }} files, {{ proj.n_chunks }} chunks)</h2>
+            {% for f in proj.files %}
+            <div class="file-group">
+                <div class="path">{{ f.path }}</div>
+                <div class="chunks">
+                    {% for c in f.chunks %}
+                    <a href="./{{ c.encoded_id }}.html" title="lines {{ c.start_line }}-{{ c.end_line }}">
+                        L{{ c.start_line }}–{{ c.end_line }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </section>
+        {% endfor %}
+    </main>
+
+    <aside class="sidebar right">
+        <h3>AI hints</h3>
+        <p style="font-size: 0.85em; color: var(--text-dim);">
+            Each chunk page exposes JSON-LD
+            <code>SoftwareSourceCode</code> structured data plus
+            <code>ai:*</code> meta tags. The site root also publishes
+            <a href="../llms.txt">llms.txt</a> listing every note + chunk
+            for AI crawlers.
+        </p>
+    </aside>
+</div>
+</body>
+</html>

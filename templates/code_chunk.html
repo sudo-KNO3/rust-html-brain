@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ chunk.path }}:{{ chunk.start_line }}-{{ chunk.end_line }} — {{ chunk.project }}</title>
+    <meta name="description" content="{{ snippet }}">
+
+    <!-- OpenGraph -->
+    <meta property="og:title" content="{{ chunk.path }}:{{ chunk.start_line }}-{{ chunk.end_line }}">
+    <meta property="og:description" content="{{ snippet }}">
+    <meta property="og:type" content="article">
+
+    <!-- AI-specific hints (custom meta tags — non-standard but commonly read) -->
+    <meta name="ai:content-type" content="code-chunk">
+    <meta name="ai:project" content="{{ chunk.project }}">
+    <meta name="ai:language" content="{{ language }}">
+    <meta name="ai:file-path" content="{{ chunk.path }}">
+    <meta name="ai:line-start" content="{{ chunk.start_line }}">
+    <meta name="ai:line-end" content="{{ chunk.end_line }}">
+    <meta name="ai:char-count" content="{{ n_chars }}">
+
+    <!-- Primary structured data: Schema.org SoftwareSourceCode via JSON-LD -->
+    <script type="application/ld+json">
+{{ json_ld | safe }}
+    </script>
+
+    <link rel="stylesheet" href="../style.css">
+    <style>
+        pre.source {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 16px;
+            overflow-x: auto;
+            line-height: 1.4;
+            font-size: 0.92em;
+        }
+        dl.meta {
+            display: grid;
+            grid-template-columns: max-content 1fr;
+            gap: 4px 16px;
+            margin: 0 0 24px 0;
+            font-size: 0.92em;
+        }
+        dl.meta dt { color: var(--text-faint); font-weight: 600; text-transform: uppercase; font-size: 0.78em; letter-spacing: 0.5px; }
+        dl.meta dd { margin: 0; color: var(--text); }
+        dl.meta dd code { background: transparent; padding: 0; }
+    </style>
+</head>
+<body>
+<div class="app" style="grid-template-columns: 240px 1fr;">
+    <aside class="sidebar">
+        <div class="brand"><a href="../index.html">{{ site_title }}</a></div>
+        <div class="nav-tabs">
+            <a href="../index.html">Index</a>
+            <a href="../graph.html">Graph</a>
+            <a href="./index.html" class="active">Code</a>
+        </div>
+
+        <h3>Siblings in this file</h3>
+        <ul>
+            {% for s in siblings %}
+            <li><a href="./{{ s.encoded_id }}.html">lines {{ s.start_line }}–{{ s.end_line }}</a></li>
+            {% else %}
+            <li style="color: var(--text-faint);">(only chunk in this file)</li>
+            {% endfor %}
+        </ul>
+
+        <h3>Project</h3>
+        <p><a href="../notes/project-{{ chunk.project }}.html">{{ chunk.project }}</a></p>
+
+        <h3>Raw data</h3>
+        <p style="font-size: 0.82em; color: var(--text-dim);">
+            JSON-LD embedded in <code>&lt;head&gt;</code>; full chunk text is the
+            <code>text</code> property of the SoftwareSourceCode entity.
+        </p>
+    </aside>
+
+    <main>
+        <article itemscope itemtype="https://schema.org/SoftwareSourceCode">
+            <header>
+                <h1 itemprop="name">{{ chunk.path }}:{{ chunk.start_line }}–{{ chunk.end_line }}</h1>
+                <dl class="meta">
+                    <dt>Project</dt>
+                    <dd>
+                        <span itemprop="isPartOf" itemscope itemtype="https://schema.org/SoftwareApplication">
+                            <a itemprop="url" href="../notes/project-{{ chunk.project }}.html">
+                                <span itemprop="name">{{ chunk.project }}</span>
+                            </a>
+                        </span>
+                    </dd>
+                    <dt>Path</dt>     <dd><code>{{ chunk.path }}</code></dd>
+                    <dt>Language</dt> <dd itemprop="programmingLanguage">{{ language }}</dd>
+                    <dt>Lines</dt>    <dd>{{ chunk.start_line }}–{{ chunk.end_line }}</dd>
+                    <dt>Chars</dt>    <dd>{{ n_chars }}</dd>
+                </dl>
+            </header>
+
+            <section aria-label="Source code">
+                <pre class="source"><code class="language-{{ language }}" itemprop="text">{{ chunk.text }}</code></pre>
+            </section>
+
+            <footer style="margin-top: 32px; font-size: 0.85em; color: var(--text-faint); border-top: 1px solid var(--border); padding-top: 12px;">
+                Indexed by <code>kb index-code</code>. Embedding model:
+                <span itemprop="codeSampleType">snippet</span>.
+                Full graph: <a href="../graph.html">graph.html</a>.
+                AI manifest: <a href="../llms.txt">llms.txt</a>.
+            </footer>
+        </article>
+    </main>
+</div>
+</body>
+</html>

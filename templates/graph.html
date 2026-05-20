@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Graph — {{ site_title }}</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="d3.v7.min.js"></script>
+    <style>
+        #cy-wrap {
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 130px);
+            background: radial-gradient(ellipse at center, #1f1f1f 0%, #141414 100%);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        #cy {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+        #cy.dragging { cursor: grabbing; }
+        #hover-info {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(40, 40, 40, 0.92);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 0.9em;
+            color: var(--text);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+            max-width: 280px;
+        }
+        #hover-info.visible { opacity: 1; }
+        #hover-info .h {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        #hover-info .d {
+            font-size: 0.85em;
+            color: var(--text-dim);
+        }
+        #results-panel {
+            position: absolute;
+            top: 70px;
+            left: 16px;
+            background: rgba(36, 36, 36, 0.96);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            max-width: 360px;
+            max-height: 60vh;
+            overflow-y: auto;
+            display: none;
+            font-size: 0.88em;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+        }
+        #results-panel .result {
+            padding: 8px 4px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        #results-panel .result:last-child { border-bottom: none; }
+        #results-panel .result:hover { background: var(--bg-panel); }
+        #results-panel .result .path { color: var(--accent); font-weight: 600; }
+        #results-panel .result .meta { color: var(--text-dim); font-size: 0.82em; }
+        #results-panel .result .snip {
+            color: var(--text); font-family: monospace; font-size: 0.78em;
+            margin-top: 4px; white-space: pre-wrap;
+            overflow: hidden; text-overflow: ellipsis;
+            max-height: 3.6em;
+        }
+        #server-status {
+            position: absolute;
+            top: 70px;
+            right: 16px;
+            font-size: 0.75em;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: var(--bg-panel);
+            color: var(--text-dim);
+            border: 1px solid var(--border);
+        }
+        #server-status.online  { color: var(--status-active); border-color: var(--status-active); }
+        #server-status.offline { color: var(--status-done); }
+    </style>
+</head>
+<body>
+<div class="app" style="grid-template-columns: 240px 1fr;">
+    <aside class="sidebar">
+        <div class="brand"><a href="index.html">{{ site_title }}</a></div>
+        <div class="nav-tabs">
+            <a href="index.html">Index</a>
+            <a href="graph.html" class="active">Graph</a>
+        </div>
+        <h3>How to read</h3>
+        <p style="font-size: 0.88em; color: var(--text-dim);">
+            Force-directed canvas — nodes are notes, edges are
+            <code>[[wikilinks]]</code>. The simulation never fully stops, so
+            the field drifts continuously.
+        </p>
+        <p style="font-size: 0.88em; color: var(--text-dim);">
+            <b>Drag</b> nodes to perturb. <b>Scroll</b> to zoom. <b>Click</b>
+            a node to open its note.
+        </p>
+        <p style="font-size: 0.88em; color: var(--text-dim);">
+            Toggle <b>Projects only</b> to see just project nodes coloured by
+            status.
+        </p>
+    </aside>
+
+    <main style="max-width: none; padding: 20px;">
+        <div class="graph-controls">
+            <button id="btn-full" class="active">Full</button>
+            <button id="btn-projects">Projects only</button>
+            <button id="btn-reheat">Re-heat</button>
+            <input id="search" type="search" placeholder="filter nodes…"
+                   style="flex: 1; max-width: 280px; background: var(--bg-panel); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; font: inherit;">
+            <div class="graph-legend">
+                <span class="dot" style="background: var(--type-project);"></span>project
+                <span class="dot" style="background: var(--type-reference);"></span>reference
+                <span class="dot" style="background: var(--type-feedback);"></span>feedback
+                <span class="dot" style="background: var(--type-user);"></span>user
+                <span class="dot" style="background: var(--type-note);"></span>note
+                <span class="dot" style="background: #56b6c2;"></span>code
+                <span class="dot" style="background: var(--danger);"></span>dangling
+            </div>
+        </div>
+        <div id="cy-wrap">
+            <canvas id="cy"></canvas>
+            <div id="hover-info"></div>
+            <div id="results-panel"></div>
+            <div id="server-status" class="offline">semantic search: offline</div>
+        </div>
+    </main>
+</div>
+
+<script>
+const GRAPH_FULL     = {{ graph_full_json | safe }};
+const GRAPH_PROJECTS = {{ graph_projects_json | safe }};
+
+const colorByType = {
+    project:   '#c678dd',
+    reference: '#61afef',
+    feedback:  '#e5c07b',
+    user:      '#98c379',
+    note:      '#abb2bf',
+    code:      '#56b6c2',
+    dangling:  '#e06c75',
+};
+const colorByStatus = {
+    active: '#98c379',
+    paused: '#e5c07b',
+    done:   '#5c6370',
+};
+// Per-project palette for code nodes — falls back to hashed HSL for unknowns.
+const codeProjectColors = {
+    'statistics-and-reasoning': '#56b6c2',
+    'knowledge-base':           '#d19a66',
+    'aermod-pipeline':          '#c678dd',
+};
+function codeColor(source) {
+    if (codeProjectColors[source]) return codeProjectColors[source];
+    let h = 0;
+    for (const c of source) h = (h * 31 + c.charCodeAt(0)) & 0xFFFFFFFF;
+    return `hsl(${Math.abs(h) % 360}, 55%, 60%)`;
+}
+
+const canvas = document.getElementById('cy');
+const wrap   = document.getElementById('cy-wrap');
+const hoverInfo = document.getElementById('hover-info');
+const ctx    = canvas.getContext('2d');
+
+let width = 0, height = 0;
+let simulation = null;
+let nodes = [], links = [];
+let transform = d3.zoomIdentity;
+let hoverNode = null;
+let isDragging = false;
+let draggingNode = null;
+let projectsOnly = false;
+
+function colorOf(n) {
+    if (n.is_code) return codeColor(n.source);
+    if (projectsOnly && n.status) {
+        return colorByStatus[n.status] || colorByType[n.note_type] || '#abb2bf';
+    }
+    return colorByType[n.note_type] || '#abb2bf';
+}
+
+let searchTerm = '';
+let serverResultIds = new Set();    // node ids returned by the /search endpoint
+let serverOnline = false;
+
+function matchesSearch(n) {
+    if (!searchTerm && serverResultIds.size === 0) return true;
+    if (serverResultIds.has(n.id)) return true;
+    if (searchTerm) {
+        return (n.label || '').toLowerCase().includes(searchTerm)
+            || (n.source || '').toLowerCase().includes(searchTerm)
+            || (n.snippet || '').toLowerCase().includes(searchTerm)
+            || (n.id || '').toLowerCase().includes(searchTerm);
+    }
+    return false;
+}
+
+function setupSimulation(g) {
+    // Clone so d3 doesn't mutate the source graph data on re-toggle.
+    nodes = g.nodes.map(n => ({ ...n }));
+    const ids = new Set(nodes.map(n => n.id));
+    links = g.edges
+        .filter(e => ids.has(e.source) && ids.has(e.target))
+        .map(e => ({ source: e.source, target: e.target }));
+
+    if (simulation) simulation.stop();
+
+    simulation = d3.forceSimulation(nodes)
+        .force('charge', d3.forceManyBody().strength(-180).distanceMax(420))
+        .force('link', d3.forceLink(links).id(d => d.id).distance(70).strength(0.55))
+        .force('center', d3.forceCenter(width / 2, height / 2).strength(0.04))
+        .force('collision', d3.forceCollide(10))
+        .force('x', d3.forceX(width / 2).strength(0.02))
+        .force('y', d3.forceY(height / 2).strength(0.02))
+        .velocityDecay(0.22)        // lower = more drift / momentum
+        .alphaDecay(0.008)          // slower cooling
+        .alphaMin(0.001)
+        .alphaTarget(0.04)          // never fully settles — gentle perpetual drift
+        .on('tick', draw);
+}
+
+function reheat() {
+    if (simulation) simulation.alpha(0.7).restart();
+}
+
+function resize() {
+    const rect = wrap.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    width = rect.width;
+    height = rect.height;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (simulation) {
+        simulation.force('center', d3.forceCenter(width / 2, height / 2).strength(0.04));
+        simulation.force('x', d3.forceX(width / 2).strength(0.02));
+        simulation.force('y', d3.forceY(height / 2).strength(0.02));
+        simulation.alpha(0.3).restart();
+    }
+}
+
+function draw() {
+    ctx.save();
+    ctx.clearRect(0, 0, width, height);
+    ctx.translate(transform.x, transform.y);
+    ctx.scale(transform.k, transform.k);
+
+    // Edges
+    ctx.strokeStyle = 'rgba(110, 193, 228, 0.18)';
+    ctx.lineWidth = 0.8 / transform.k;
+    ctx.beginPath();
+    for (const e of links) {
+        ctx.moveTo(e.source.x, e.source.y);
+        ctx.lineTo(e.target.x, e.target.y);
+    }
+    ctx.stroke();
+
+    // Highlighted edges of hoverNode
+    if (hoverNode) {
+        ctx.strokeStyle = 'rgba(110, 193, 228, 0.75)';
+        ctx.lineWidth = 1.5 / transform.k;
+        ctx.beginPath();
+        for (const e of links) {
+            if (e.source === hoverNode || e.target === hoverNode) {
+                ctx.moveTo(e.source.x, e.source.y);
+                ctx.lineTo(e.target.x, e.target.y);
+            }
+        }
+        ctx.stroke();
+    }
+
+    // Nodes
+    for (const n of nodes) {
+        const matched = matchesSearch(n);
+        ctx.globalAlpha = matched ? 1.0 : 0.12;
+        let r;
+        if (n === hoverNode) r = 9;
+        else if (n.is_project) r = 7;
+        else if (n.is_code) r = 3;
+        else r = 5;
+        const color = colorOf(n);
+
+        // Soft glow for project nodes (and hovered / matched-while-searching).
+        if (n.is_project || n === hoverNode || (matched && searchTerm)) {
+            const glow = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 3.5);
+            glow.addColorStop(0, color + 'cc');
+            glow.addColorStop(1, color + '00');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(n.x, n.y, r * 3.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.beginPath();
+        ctx.fillStyle = color;
+        ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (n === hoverNode) {
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.5 / transform.k;
+            ctx.stroke();
+        }
+    }
+    ctx.globalAlpha = 1;
+
+    // Labels — hover-only, except when zoomed in or for projects/search-matches.
+    ctx.fillStyle = '#dcdcdc';
+    ctx.font = `${11 / Math.max(transform.k, 1)}px system-ui, -apple-system, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (const n of nodes) {
+        if (!matchesSearch(n)) continue;
+        const show = n === hoverNode
+            || transform.k > 1.4
+            || n.is_project
+            || (searchTerm && matchesSearch(n));
+        if (!show) continue;
+        ctx.fillText(n.label, n.x, n.y + 12);
+    }
+
+    ctx.restore();
+}
+
+function nodeAt(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (clientX - rect.left - transform.x) / transform.k;
+    const y = (clientY - rect.top  - transform.y) / transform.k;
+    let best = null;
+    let bestDist = 12 / transform.k;
+    for (const n of nodes) {
+        const d = Math.hypot(n.x - x, n.y - y);
+        if (d < bestDist) {
+            best = n;
+            bestDist = d;
+        }
+    }
+    return best;
+}
+
+// Zoom + pan
+const zoom = d3.zoom()
+    .scaleExtent([0.2, 6])
+    .filter(e => !e.button && e.type !== 'mousedown' || !nodeAt(e.clientX, e.clientY))
+    .on('zoom', e => { transform = e.transform; });
+d3.select(canvas).call(zoom);
+
+// Node drag
+canvas.addEventListener('mousedown', e => {
+    const n = nodeAt(e.clientX, e.clientY);
+    if (n) {
+        draggingNode = n;
+        n.fx = n.x;
+        n.fy = n.y;
+        simulation.alphaTarget(0.25).restart();
+        canvas.classList.add('dragging');
+        e.preventDefault();
+    }
+});
+canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    if (draggingNode) {
+        const x = (e.clientX - rect.left - transform.x) / transform.k;
+        const y = (e.clientY - rect.top  - transform.y) / transform.k;
+        draggingNode.fx = x;
+        draggingNode.fy = y;
+        return;
+    }
+    const n = nodeAt(e.clientX, e.clientY);
+    if (n !== hoverNode) {
+        hoverNode = n;
+        if (n) {
+            const meta = n.is_code
+                ? `${escapeHtml(n.source)} · code`
+                : `${escapeHtml(n.note_type)}${n.status ? ' · ' + escapeHtml(n.status) : ''}`;
+            let html = `<div class="h">${escapeHtml(n.label)}</div>`
+                + `<div class="d">${meta}</div>`;
+            if (n.snippet) {
+                html += `<div class="d" style="margin-top:6px;color:var(--text);font-family:monospace;font-size:0.82em;white-space:pre-wrap;">${escapeHtml(n.snippet)}</div>`;
+            }
+            hoverInfo.innerHTML = html;
+            hoverInfo.classList.add('visible');
+        } else {
+            hoverInfo.classList.remove('visible');
+        }
+        canvas.style.cursor = (n && !n.is_code) ? 'pointer' : (n ? 'default' : 'grab');
+    }
+});
+canvas.addEventListener('mouseup', () => {
+    if (draggingNode) {
+        draggingNode.fx = null;
+        draggingNode.fy = null;
+        draggingNode = null;
+        simulation.alphaTarget(0.04);
+        canvas.classList.remove('dragging');
+    }
+});
+canvas.addEventListener('click', e => {
+    const n = nodeAt(e.clientX, e.clientY);
+    if (!n) return;
+    if (n.is_code) {
+        // Code nodes don't have HTML pages; show snippet in the info card on hover.
+        // Nothing to navigate to (yet).
+        return;
+    }
+    if (!n.dangling) {
+        window.location.href = './notes/' + n.id + '.html';
+    }
+});
+
+// Search — debounced semantic call to /search, with substring fallback.
+const SEARCH_ENDPOINT = 'http://127.0.0.1:9100/search';
+const HEALTH_ENDPOINT = 'http://127.0.0.1:9100/health';
+const resultsPanel = document.getElementById('results-panel');
+const statusEl = document.getElementById('server-status');
+let searchTimer = null;
+
+document.getElementById('search').addEventListener('input', e => {
+    const val = e.target.value.trim();
+    searchTerm = val.toLowerCase();
+    clearTimeout(searchTimer);
+    if (val.length < 2) {
+        serverResultIds.clear();
+        resultsPanel.style.display = 'none';
+        return;
+    }
+    searchTimer = setTimeout(() => semanticSearch(val), 300);
+});
+
+async function semanticSearch(query) {
+    try {
+        const r = await fetch(SEARCH_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: query, top_k: 8 }),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await r.json();
+        serverResultIds = new Set(data.results.map(h => h.id));
+        renderResults(data.results);
+        setStatus(true);
+    } catch (e) {
+        serverResultIds.clear();
+        setStatus(false);
+        resultsPanel.innerHTML =
+            '<div style="color:var(--text-dim); font-size:0.85em;">'
+            + 'semantic search offline — substring filter still active. '
+            + 'Start it with <code>kb serve</code>.'
+            + '</div>';
+        resultsPanel.style.display = 'block';
+    }
+}
+
+function renderResults(results) {
+    if (!results || !results.length) {
+        resultsPanel.innerHTML = '<div style="color:var(--text-dim);font-size:0.85em;">no results</div>';
+        resultsPanel.style.display = 'block';
+        return;
+    }
+    resultsPanel.innerHTML = results.map(h => `
+        <div class="result" data-id="${escapeHtml(h.id)}">
+            <div class="path">${escapeHtml(h.path)}:${h.start_line}-${h.end_line}</div>
+            <div class="meta">${(h.score * 100).toFixed(0)}% · ${escapeHtml(h.project)}</div>
+            <div class="snip">${escapeHtml(h.snippet)}</div>
+        </div>
+    `).join('');
+    resultsPanel.style.display = 'block';
+
+    resultsPanel.querySelectorAll('.result').forEach(el => {
+        el.addEventListener('click', () => {
+            const id = el.dataset.id;
+            // First: open the chunk's HTML detail page if it exists.
+            // (Falls back to centring the node if the page 404s.)
+            window.location.href = './code/' + encodeURIComponent(id) + '.html';
+        });
+    });
+}
+
+function setStatus(online) {
+    serverOnline = online;
+    statusEl.textContent = 'semantic search: ' + (online ? 'online' : 'offline');
+    statusEl.classList.toggle('online', online);
+    statusEl.classList.toggle('offline', !online);
+}
+
+// Initial health check
+fetch(HEALTH_ENDPOINT).then(r => setStatus(r.ok)).catch(() => setStatus(false));
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Mode toggles
+document.getElementById('btn-full').addEventListener('click', () => {
+    document.getElementById('btn-full').classList.add('active');
+    document.getElementById('btn-projects').classList.remove('active');
+    projectsOnly = false;
+    setupSimulation(GRAPH_FULL);
+});
+document.getElementById('btn-projects').addEventListener('click', () => {
+    document.getElementById('btn-projects').classList.add('active');
+    document.getElementById('btn-full').classList.remove('active');
+    projectsOnly = true;
+    setupSimulation(GRAPH_PROJECTS);
+});
+document.getElementById('btn-reheat').addEventListener('click', reheat);
+
+window.addEventListener('resize', resize);
+resize();
+setupSimulation(GRAPH_FULL);
+</script>
+</body>
+</html>

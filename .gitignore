@@ -1,0 +1,13 @@
+/target
+/output
+**/*.rs.bk
+
+# Local config (may contain personal paths). Distribute config.example.toml.
+/config.toml
+
+.vscode/
+.idea/
+*.iml
+
+.DS_Store
+Thumbs.db

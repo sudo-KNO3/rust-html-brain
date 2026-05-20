@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ note.title }} — {{ site_title }}</title>
+    <meta name="description" content="{{ note.description }}">
+    <meta property="og:title" content="{{ note.title }}">
+    <meta property="og:description" content="{{ note.description }}">
+    <meta property="og:type" content="article">
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+        <div class="brand"><a href="../index.html">{{ site_title }}</a></div>
+        <div class="nav-tabs">
+            <a href="../index.html">Index</a>
+            <a href="../graph.html">Graph</a>
+        </div>
+        {% for group in by_type %}
+        <h3>{{ group.category }}</h3>
+        <ul>
+            {% for n in group.notes %}
+            <li{% if n.slug == note.slug %} class="current"{% endif %}>
+                <a href="../notes/{{ n.slug }}.html">{{ n.title }}</a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% endfor %}
+    </aside>
+
+    <main>
+        <article>
+            <h1>{{ note.title }}</h1>
+            <div class="note-meta">
+                <span class="badge type-{{ note.note_type }}">{{ note.note_type }}</span>
+                {% if note.status %}<span class="badge status-{{ note.status }}">{{ note.status }}</span>{% endif %}
+                <span>source: {{ note.source }}</span>
+            </div>
+            {% if note.description %}<div class="description">{{ note.description }}</div>{% endif %}
+            {{ note.body_html | safe }}
+        </article>
+    </main>
+
+    <aside class="sidebar right">
+        <h3>Backlinks ({{ backlinks | length }})</h3>
+        <ul>
+            {% for b in backlinks %}
+            <li><a href="../notes/{{ b.slug }}.html">{{ b.title }}</a></li>
+            {% else %}
+            <li style="color: var(--text-faint);">(none)</li>
+            {% endfor %}
+        </ul>
+
+        <h3>Outgoing</h3>
+        <ul>
+            {% for o in outgoing %}
+            <li><a href="../notes/{{ o.slug }}.html"{% if o.dangling %} class="dangling"{% endif %}>{{ o.title }}</a></li>
+            {% else %}
+            <li style="color: var(--text-faint);">(none)</li>
+            {% endfor %}
+        </ul>
+    </aside>
+</div>
+</body>
+</html>

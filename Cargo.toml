@@ -1,0 +1,39 @@
+[package]
+name        = "rust-html-brain"
+version     = "0.1.0"
+edition     = "2021"
+authors     = ["Kiefer Galliford"]
+description = "Static HTML 'second brain' generator — Obsidian-style markdown to a portable, AI-readable site with a D3 force graph + semantic code search"
+license     = "MIT"
+repository  = "https://github.com/sudo-KNO3/rust-html-brain"
+readme      = "README.md"
+keywords    = ["knowledge-base", "obsidian", "static-site", "graph", "embeddings"]
+categories  = ["command-line-utilities", "text-processing"]
+
+[[bin]]
+name = "kb"
+path = "src/main.rs"
+
+[dependencies]
+pulldown-cmark = "0.12"
+walkdir        = "2"
+serde          = { version = "1", features = ["derive"] }
+serde_yaml     = "0.9"
+serde_json     = "1"
+toml           = "0.8"
+tera           = "1"
+regex          = "1"
+anyhow         = "1"
+clap           = { version = "4", features = ["derive"] }
+# Local search HTTP server (kb serve)
+axum           = "0.7"
+tokio          = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net"] }
+tower-http     = { version = "0.5", features = ["cors"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level     = 3
+lto           = "thin"
+codegen-units = 1

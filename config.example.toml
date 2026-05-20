@@ -1,0 +1,39 @@
+# Copy to `config.toml` and adjust paths to your setup.
+# `config.toml` is gitignored — your local paths stay on your machine.
+
+title  = "My Second Brain"
+output = "output"
+
+# ── Note sources ─────────────────────────────────────────────────────────────
+# Each [[sources]] block is a directory of markdown files. Wikilinks
+# `[[slug]]` between notes become hyperlinks in the generated site.
+
+[[sources]]
+name = "content"
+path = "content"
+
+# Example: ingest your AI agent's persistent memory directory.
+# [[sources]]
+# name = "memory"
+# path = "~/.claude/projects/<your-project>/memory"
+
+# ── Code indexing (optional) ─────────────────────────────────────────────────
+# `kb index-code` walks each [[code_sources]] root, chunks every code file,
+# pushes chunks through `scripts/kb_embed*.py`, and writes `output/<index_file>`.
+# `kb serve` then exposes semantic search at 127.0.0.1:9100 for the graph view.
+#
+# Pick one of the bundled embed scripts (or write your own):
+#   - kb_embed.py         routes through aermod-pipeline's VectorStore
+#                         (needs KB_AERMOD_PATH env var set)
+#   - kb_embed_simple.py  pure sentence-transformers, no external deps
+#                         (pip install sentence-transformers)
+
+[code_index]
+python_bin   = "python"
+embed_script = "scripts/kb_embed_simple.py"
+index_file   = "code_index.json"
+batch_size   = 64
+
+# [[code_sources]]
+# name = "my-project"
+# path = "../my-project"
