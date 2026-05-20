@@ -75,7 +75,7 @@ cargo run --release
 
 # 3. (Optional) Index your codebases for semantic search
 cargo run --release -- index-code
-# uses scripts/kb_embed_simple.py by default
+# uses scripts/kb_embed.py by default
 # (pip install sentence-transformers first)
 
 # 4. (Optional) Start the search server
@@ -83,20 +83,21 @@ cargo run --release -- serve
 # leave running while browsing output/graph.html
 ```
 
-## Embedding backends
+## Embedding backend
 
-Two bundled Python sidecars; configurable in `config.toml`:
+Bundled: `scripts/kb_embed.py` — pure sentence-transformers, no external
+deps. `pip install sentence-transformers` and you're done.
 
-| Script | Backend | Setup |
-|---|---|---|
-| `scripts/kb_embed_simple.py` | sentence-transformers (default) | `pip install sentence-transformers` |
-| `scripts/kb_embed.py` | aermod-pipeline `VectorStore` (OpenAI → ST → Ollama) | `KB_AERMOD_PATH=/path/to/aermod-pipeline` |
+To swap in a different backend (OpenAI, Cohere, Voyage, Ollama, a local
+GGUF model, …), drop in a replacement script that honours the same JSON
+contract and update `embed_script` in `config.toml`:
 
-Either one writes the same JSON contract:
-`{ "model": str, "dim": int, "embeddings": [[float, ...], ...] }`
+```
+stdin / argv[1]: JSON list of strings
+stdout / argv[2]: JSON {"model": str, "dim": int, "embeddings": [[float, ...]]}
+```
 
-Drop in your own script for a different backend — that's the entire
-interface.
+That's the entire interface.
 
 ## Frontmatter conventions
 
@@ -198,9 +199,24 @@ that, `kb index-code` works with no internet.
 
 The container's bundled `config.toml` lives at `/app/config.toml` and
 points at `/sources/notes` + `/sources/code` — mount your data there.
-Only `kb_embed_simple.py` (sentence-transformers) is used in the image;
-nothing leaves your network unless you set `OPENAI_API_KEY` and swap
-the embed script.
+Only `kb_embed.py` (sentence-transformers) is used in the image;
+nothing leaves your network unless you swap the embed script.
+
+### Published images
+
+Pushed automatically by GitHub Actions on every commit to `main` and on
+version tags (`v1.2.3`):
+
+```
+ghcr.io/sudo-kno3/rust-html-brain:slim         # latest main, downloads model
+ghcr.io/sudo-kno3/rust-html-brain:full         # latest main, model pre-baked
+ghcr.io/sudo-kno3/rust-html-brain:latest       # alias for :slim
+ghcr.io/sudo-kno3/rust-html-brain:1.2.3        # specific version
+ghcr.io/sudo-kno3/rust-html-brain:1.2.3-full   # specific version, baked
+```
+
+Also published to Docker Hub if `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`
+secrets are configured in the repo.
 
 ## Status
 

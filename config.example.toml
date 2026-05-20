@@ -19,18 +19,17 @@ path = "content"
 
 # ── Code indexing (optional) ─────────────────────────────────────────────────
 # `kb index-code` walks each [[code_sources]] root, chunks every code file,
-# pushes chunks through `scripts/kb_embed*.py`, and writes `output/<index_file>`.
+# pushes chunks through `scripts/kb_embed.py`, and writes `output/<index_file>`.
 # `kb serve` then exposes semantic search at 127.0.0.1:9100 for the graph view.
 #
-# Pick one of the bundled embed scripts (or write your own):
-#   - kb_embed.py         routes through aermod-pipeline's VectorStore
-#                         (needs KB_AERMOD_PATH env var set)
-#   - kb_embed_simple.py  pure sentence-transformers, no external deps
-#                         (pip install sentence-transformers)
+# The bundled `kb_embed.py` uses sentence-transformers locally — no API key,
+# no external service. To use a different backend (OpenAI, Cohere, Voyage,
+# Ollama, ...), drop in a replacement script honouring the same JSON
+# contract and point `embed_script` at it.
 
 [code_index]
 python_bin   = "python"
-embed_script = "scripts/kb_embed_simple.py"
+embed_script = "scripts/kb_embed.py"
 index_file   = "code_index.json"
 batch_size   = 64
 

@@ -67,9 +67,9 @@ RUN pip install --no-cache-dir \
 WORKDIR /app
 
 COPY --from=builder /usr/local/bin/kb /usr/local/bin/kb
-COPY scripts/kb_embed_simple.py /app/scripts/kb_embed_simple.py
-COPY content                    /app/content
-COPY config.example.toml        /app/config.example.toml
+COPY scripts/kb_embed.py /app/scripts/kb_embed.py
+COPY content             /app/content
+COPY config.example.toml /app/config.example.toml
 
 # Container-native default config: mount your data at /sources/{notes,code}.
 RUN cat > /app/config.toml <<'EOF'
@@ -86,7 +86,7 @@ path = "/sources/notes"
 
 [code_index]
 python_bin   = "python"
-embed_script = "/app/scripts/kb_embed_simple.py"
+embed_script = "/app/scripts/kb_embed.py"
 index_file   = "code_index.json"
 batch_size   = 64
 

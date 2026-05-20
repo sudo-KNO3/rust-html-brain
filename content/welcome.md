@@ -12,8 +12,8 @@ turns Obsidian-style markdown into a browsable HTML site.
 
 ## How it works
 
-1. `kb` walks every source path in `config.toml` (your `~/.claude` memory
-   directory plus this `content/` folder by default).
+1. `kb` walks every source path in `config.toml` (this `content/` folder
+   by default; add your own `[[sources]]` entries to ingest more).
 2. Each `.md` file becomes one HTML page under `output/notes/<slug>.html`.
 3. `[[wikilinks]]` between notes become hyperlinks. Targets that don't
    resolve are styled in red so you can see dangling references.
@@ -36,8 +36,18 @@ metadata:
 
 Then re-run `cargo run --release` to rebuild.
 
-## Related
+## Example wikilinks
 
-- [[project-statistics-reasoning]] — the Rust mining-analytics workbench
-- [[aermod-ontario-system]] — Ontario MECP air-dispersion stack
-- [[reference-rust-windows-toolchain]] — the toolchain on this machine
+These references demonstrate the format — they'll render red ("dangling")
+until you create matching notes with these slugs:
+
+- [[my-first-project]] — example project entry
+- [[example-reference]] — example reference entry
+
+## Code search
+
+If you've run `kb index-code` (see the README) you'll also see code
+chunks as nodes in the [graph view](../graph.html). With `kb serve`
+running on `localhost:9100`, the search box becomes semantic — type
+"how do I parse markdown" or "where does the HTTP server start" and the
+matching code lights up.

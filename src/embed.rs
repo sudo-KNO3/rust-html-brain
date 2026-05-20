@@ -1,5 +1,8 @@
-//! Call the Python `kb_embed.py` sidecar to embed batches of text via
-//! the aermod-pipeline VectorStore (OpenAI / sentence-transformers / Ollama).
+//! Call the Python `kb_embed.py` sidecar to embed batches of text.
+//!
+//! The sidecar is a script honouring a tiny JSON-in / JSON-out contract;
+//! the default ships sentence-transformers, but you can swap in OpenAI,
+//! Cohere, Voyage, Ollama, or any backend by writing a replacement script.
 
 use anyhow::{anyhow, Context, Result};
 use serde::Deserialize;
@@ -16,9 +19,10 @@ pub struct EmbedResponse {
 
 /// Embed a batch of strings by shelling out to the Python sidecar.
 ///
-/// `python_bin` is whichever interpreter has aermod-pipeline's deps
-/// (openai, sentence-transformers, etc.). Defaults to `python` on PATH.
-/// `script_path` is the absolute path to `scripts/kb_embed.py`.
+/// `python_bin` is whichever interpreter has the embedding backend's
+/// deps installed (`sentence-transformers` by default). Defaults to
+/// `python` on PATH. `script_path` is the path to the embed script
+/// (typically `scripts/kb_embed.py`).
 pub fn embed_batch(
     python_bin: &str,
     script_path: &Path,

@@ -1,0 +1,113 @@
+name: Docker — build & publish
+
+on:
+  push:
+    branches: [main]
+    tags:     ['v*']
+  workflow_dispatch:
+
+env:
+  REGISTRY:   ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - name: slim
+            bake: "false"
+          - name: full
+            bake: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Optional: also publish to Docker Hub if secrets are configured.
+      # Set repo secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN to enable.
+      - name: Check Docker Hub creds
+        id: dockerhub
+        run: |
+          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to Docker Hub
+        if: steps.dockerhub.outputs.enabled == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Compute tags
+        id: tags
+        run: |
+          variant="${{ matrix.variant.name }}"
+          ghcr="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          hub="${{ secrets.DOCKERHUB_USERNAME }}/rust-html-brain"
+
+          tag_lines=()
+          tag_lines+=("${ghcr}:${variant}")
+          tag_lines+=("${ghcr}:${variant}-${GITHUB_SHA::7}")
+
+          # On version tag (vX.Y.Z) also publish the semver tag.
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="${GITHUB_REF#refs/tags/v}"
+            tag_lines+=("${ghcr}:${version}-${variant}")
+            if [ "${variant}" = "slim" ]; then
+              tag_lines+=("${ghcr}:latest")
+              tag_lines+=("${ghcr}:${version}")
+            fi
+          fi
+
+          if [ "${{ steps.dockerhub.outputs.enabled }}" = "true" ]; then
+            tag_lines+=("${hub}:${variant}")
+            tag_lines+=("${hub}:${variant}-${GITHUB_SHA::7}")
+            if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+              version="${GITHUB_REF#refs/tags/v}"
+              tag_lines+=("${hub}:${version}-${variant}")
+              if [ "${variant}" = "slim" ]; then
+                tag_lines+=("${hub}:latest")
+                tag_lines+=("${hub}:${version}")
+              fi
+            fi
+          fi
+
+          # Join into a single newline-separated string for build-push-action.
+          printf '%s\n' "${tag_lines[@]}" > /tmp/tags.txt
+          {
+            echo "tags<<EOF"
+            cat /tmp/tags.txt
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context:    .
+          push:       true
+          tags:       ${{ steps.tags.outputs.tags }}
+          build-args: |
+            BAKE_MODEL=${{ matrix.variant.bake }}
+          cache-from: type=gha,scope=${{ matrix.variant.name }}
+          cache-to:   type=gha,scope=${{ matrix.variant.name }},mode=max
+          # full image is large (~3.5 GB); give the runner room and time.
+          provenance: false

@@ -160,11 +160,10 @@ const colorByStatus = {
     paused: '#e5c07b',
     done:   '#5c6370',
 };
-// Per-project palette for code nodes — falls back to hashed HSL for unknowns.
+// Per-project palette for code nodes. Unlisted projects get a hashed
+// HSL colour, so new code sources never need this map touched.
 const codeProjectColors = {
-    'statistics-and-reasoning': '#56b6c2',
-    'knowledge-base':           '#d19a66',
-    'aermod-pipeline':          '#c678dd',
+    // Extend with your own { 'project-name': '#hexcolor' } for stable hues.
 };
 function codeColor(source) {
     if (codeProjectColors[source]) return codeProjectColors[source];
