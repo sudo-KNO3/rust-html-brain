@@ -3,11 +3,45 @@
 //! The sidecar is a script honouring a tiny JSON-in / JSON-out contract;
 //! the default ships sentence-transformers, but you can swap in OpenAI,
 //! Cohere, Voyage, Ollama, or any backend by writing a replacement script.
+//!
+//! When `embed_script` in config is the literal `"@bundled"`, the sidecar
+//! script is extracted from the binary itself at first use — so a freshly-
+//! initialised codebase needs no Python file on disk to start indexing.
 
 use anyhow::{anyhow, Context, Result};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+/// Sentinel value for `embed_script` that means "use the script bundled
+/// inside the binary, extracted to a stable temp path on first use".
+pub const BUNDLED_SENTINEL: &str = "@bundled";
+
+/// Source of the bundled embed script — copied verbatim from
+/// `scripts/kb_embed.py` at compile time.
+const BUNDLED_EMBED_PY: &str = include_str!("../scripts/kb_embed.py");
+
+/// Resolve `embed_script` from config. If it's the bundled sentinel,
+/// extract the embedded script to `<temp>/rust-html-brain/embed.py` and
+/// return that path. Otherwise return the original path unchanged.
+pub fn resolve_embed_script(configured: &str) -> Result<PathBuf> {
+    if configured != BUNDLED_SENTINEL {
+        return Ok(PathBuf::from(configured));
+    }
+    let dir = std::env::temp_dir().join("rust-html-brain");
+    std::fs::create_dir_all(&dir).context("creating temp dir for bundled embed script")?;
+    let path = dir.join("embed.py");
+    // Re-extract only if missing or stale (different content).
+    let needs_write = match std::fs::read_to_string(&path) {
+        Ok(existing) => existing != BUNDLED_EMBED_PY,
+        Err(_) => true,
+    };
+    if needs_write {
+        std::fs::write(&path, BUNDLED_EMBED_PY)
+            .with_context(|| format!("writing bundled embed script to {}", path.display()))?;
+    }
+    Ok(path)
+}
 
 /// Response shape written by `scripts/kb_embed.py`.
 #[derive(Debug, Deserialize)]

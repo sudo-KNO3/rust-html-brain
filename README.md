@@ -62,25 +62,50 @@ recommended by Google + Schema.org + the 2026 LLM-crawler best practices:
 3. **`<meta name="ai:*">`** tags (project, language, file-path, lines,
    char-count) as fallback for parsers that don't read JSON-LD.
 
-## Quick start
+## Drop into any codebase
+
+The fastest path: `kb init` in the root of any repo. It writes a
+`config.toml`, appends `.kb/` to `.gitignore`, and drops an `AGENTS.md`
+pointer so AI tools immediately know where the indexed context lives.
 
 ```bash
-# 1. Configure
+cd my-project
+kb init        # writes config.toml + AGENTS.md, gitignores .kb/
+kb             # build the HTML index into .kb/
+kb index-code  # embed every code file → .kb/code_index.json (needs Python)
+kb serve       # semantic-search HTTP server on localhost:9100
+```
+
+After `kb init`, the layout looks like:
+
+```
+my-project/
+├── AGENTS.md          ← AI-facing pointer at .kb/llms.txt
+├── config.toml        ← edit to adjust sources / scope
+├── .gitignore         ← .kb/ appended
+├── …your code…
+└── .kb/               ← (gitignored) generated context
+    ├── llms.txt
+    ├── index.html
+    ├── graph.html
+    └── code/<chunk>.html
+```
+
+The bundled embed script lives inside the `kb` binary — `embed_script =
+"@bundled"` (the default written by `kb init`) extracts it on first use,
+so the target codebase never needs a Python file dropped into it. Only
+host requirement: `pip install sentence-transformers`.
+
+## Manual / power-user config
+
+If you'd rather configure by hand:
+
+```bash
 cp config.example.toml config.toml
 # edit config.toml — add your [[sources]] and (optionally) [[code_sources]]
-
-# 2. Build the site
-cargo run --release
-# → ./output/  ; open output/index.html
-
-# 3. (Optional) Index your codebases for semantic search
-cargo run --release -- index-code
-# uses scripts/kb_embed.py by default
-# (pip install sentence-transformers first)
-
-# 4. (Optional) Start the search server
-cargo run --release -- serve
-# leave running while browsing output/graph.html
+cargo run --release                 # build the site
+cargo run --release -- index-code   # index code
+cargo run --release -- serve        # search server
 ```
 
 ## Embedding backend
@@ -134,6 +159,7 @@ output/
 ## CLI
 
 ```
+kb init [--force]   write config.toml + AGENTS.md, append .kb/ to .gitignore
 kb [build]          generate the static site (default)
 kb index-code       walk code sources, chunk + embed, write code_index.json
 kb serve            run the semantic-search HTTP server on 127.0.0.1:9100
